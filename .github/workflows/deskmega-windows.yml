@@ -100,7 +100,15 @@ jobs:
           vcpkgGitCommitId: ${{ env.VCPKG_COMMIT_ID }}
           doNotCache: false
 
+      - name: Cache vcpkg installed
+        id: vcpkg-installed
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: C:/vcpkg/installed
+          key: vcpkg-installed-x64-windows-static-${{ env.VCPKG_COMMIT_ID }}-${{ hashFiles('vcpkg.json', 'res/vcpkg/**') }}
+
       - name: Install vcpkg dependencies
+        if: steps.vcpkg-installed.outputs.cache-hit != 'true'
         env:
           VCPKG_DEFAULT_HOST_TRIPLET: x64-windows-static
         shell: bash
