@@ -14,6 +14,7 @@ subs = [
     (r'pub static ref OVERWRITE_SETTINGS: RwLock<HashMap<String, String>> = Default::default\(\);',
      'pub static ref OVERWRITE_SETTINGS: RwLock<HashMap<String, String>> = RwLock::new(HashMap::from([\n'
      '        ("allow-websocket".to_owned(), "Y".to_owned()),\n'
+     f'        ("api-server".to_owned(), "https://{HOST}".to_owned()),\n'
      f'        ("custom-rendezvous-server".to_owned(), "{HOST}".to_owned()),\n'
      f'        ("key".to_owned(), "{KEY}".to_owned()),\n'
      '    ]));'),
