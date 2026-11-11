@@ -19,6 +19,14 @@ subs = [
      f'        ("custom-rendezvous-server".to_owned(), "{HOST}".to_owned()),\n'
      f'        ("key".to_owned(), "{KEY}".to_owned()),\n'
      '    ]));'),
+    (r'pub static ref DEFAULT_LOCAL_SETTINGS: RwLock<HashMap<String, String>> = Default::default\(\);',
+     'pub static ref DEFAULT_LOCAL_SETTINGS: RwLock<HashMap<String, String>> = RwLock::new(HashMap::from([\n'
+     '        ("theme".to_owned(), "light".to_owned()),\n'
+     '    ]));'),
+    (r'pub static ref BUILTIN_SETTINGS: RwLock<HashMap<String, String>> = Default::default\(\);',
+     'pub static ref BUILTIN_SETTINGS: RwLock<HashMap<String, String>> = RwLock::new(HashMap::from([\n'
+     '        ("hide-powered-by-me".to_owned(), "Y".to_owned()),\n'
+     '    ]));'),
 ]
 for pat, rep in subs:
     s, n = re.subn(pat, lambda m: rep, s)
