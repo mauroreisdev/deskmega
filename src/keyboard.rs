@@ -732,6 +732,11 @@ fn start_grab_loop() {
         rdev::set_is_main_thread(false);
         #[cfg(target_os = "windows")]
         rdev::set_event_popup(false);
+        // DeskMEGA: o hook é global; consultar o unicode (ToUnicodeEx) a cada tecla
+        // consome o estado das teclas mortas (~ ´ ^) e duplica o acento no PC local.
+        // Só liga ao entrar numa sessão (update_grab_get_key_name em GrabState::Run).
+        #[cfg(target_os = "windows")]
+        rdev::set_get_key_unicode(false);
         if let Err(error) = rdev::grab(func) {
             log::error!("rdev Error: {:?}", error)
         }
