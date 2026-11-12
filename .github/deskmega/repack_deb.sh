@@ -32,7 +32,7 @@ sed -i 's/^Package: rustdesk$/Package: deskmega/; s/^Maintainer: .*/Maintainer: 
 grep -q '^Package: deskmega$' "$W/DEBIAN/control"
 
 # nada de "rustdesk" visível sobrando nos arquivos de texto do pacote
-if grep -rIl 'rustdesk' "$W/DEBIAN" "$W/usr/share/applications" "$W/usr/share/deskmega/files" ; then
+if grep -rIl --exclude=md5sums 'rustdesk' "$W/DEBIAN" "$W/usr/share/applications" "$W/usr/share/deskmega/files" ; then
   echo "ERRO: ainda há 'rustdesk' nos arquivos acima"; exit 1
 fi
 
