@@ -47,7 +47,7 @@ jobs:
             libayatana-appindicator3-dev libasound2-dev libclang-dev libgstreamer1.0-dev \
             libgstreamer-plugins-base1.0-dev libgtk-3-dev libpulse-dev libva-dev \
             libxcb-randr0-dev libxcb-shape0-dev libxcb-xfixes0-dev libxdo-dev libxfixes-dev \
-            llvm-dev nasm ninja-build pkg-config python3 unzip wget xz-utils libssl-dev
+            llvm-dev nasm ninja-build pkg-config python3 unzip wget xz-utils libssl-dev libunwind-dev
           sudo apt-get remove -y libopus-dev || true
 
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
