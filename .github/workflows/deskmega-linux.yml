@@ -1,0 +1,144 @@
+name: DeskMEGA Linux
+
+on:
+  workflow_dispatch:
+    inputs:
+      bridge_run_id:
+        description: "Reusar bridge-artifact deste run (vazio = gerar de novo)"
+        required: false
+        default: ""
+
+env:
+  FLUTTER_VERSION: "3.24.5"
+  RUST_VERSION: "1.75"
+  VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
+  VCPKG_COMMIT_ID: "9e593bb18ea69cc5095e012465dcd675a822ed0d"
+  VERSION: "1.5.3"
+
+jobs:
+  generate-bridge:
+    if: ${{ !inputs.bridge_run_id }}
+    uses: ./.github/workflows/bridge.yml
+
+  linux-deb:
+    needs: [generate-bridge]
+    if: ${{ always() && (needs.generate-bridge.result == 'success' || needs.generate-bridge.result == 'skipped') }}
+    name: deb amd64 (Ubuntu 22.04 / Mint 21+)
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/github-script@d7906e4ad0b1822421a7e6a35d5ca353c962f410 # v6
+        with:
+          script: |
+            core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
+            core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
+
+      - name: Liberar espaço
+        run: |
+          sudo rm -rf /opt/ghc /usr/local/lib/android /usr/share/dotnet
+          df -h /
+
+      - name: Dependências
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y build-essential clang cmake curl git g++ \
+            libayatana-appindicator3-dev libasound2-dev libclang-dev libgstreamer1.0-dev \
+            libgstreamer-plugins-base1.0-dev libgtk-3-dev libpulse-dev libva-dev \
+            libxcb-randr0-dev libxcb-shape0-dev libxcb-xfixes0-dev libxdo-dev libxfixes-dev \
+            llvm-dev nasm ninja-build pkg-config python3 unzip wget xz-utils libssl-dev
+          sudo apt-get remove -y libopus-dev || true
+
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          submodules: recursive
+
+      - name: Marca DeskMEGA (servidor, chave, nome)
+        run: python3 .github/deskmega/patch_hbb.py libs/hbb_common/src/config.rs
+
+      - name: Só cdylib
+        run: sed -i "s/\[\"cdylib\", \"staticlib\", \"rlib\"\]/\[\"cdylib\"\]/g" Cargo.toml
+
+      - uses: lukka/run-vcpkg@b1a0dd252f06b9e25b3c022a9a03bd7a427fb6a2 # v11
+        with:
+          vcpkgDirectory: /opt/artifacts/vcpkg
+          vcpkgGitCommitId: ${{ env.VCPKG_COMMIT_ID }}
+          doNotCache: false
+
+      - name: Cache vcpkg installed
+        id: vcpkg-installed
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: /opt/artifacts/vcpkg/installed
+          key: vcpkg-installed-x64-linux-2204-${{ env.VCPKG_COMMIT_ID }}-${{ hashFiles('vcpkg.json', 'res/vcpkg/**') }}
+
+      - name: Dependências vcpkg
+        if: steps.vcpkg-installed.outputs.cache-hit != 'true'
+        shell: bash
+        run: |
+          if ! $VCPKG_ROOT/vcpkg install --triplet x64-linux --x-install-root="$VCPKG_ROOT/installed"; then
+            find "${VCPKG_ROOT}/" -name "*.log" | while read -r f; do echo "== $f"; cat "$f"; done
+            exit 1
+          fi
+
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        if: ${{ !inputs.bridge_run_id }}
+        with:
+          name: bridge-artifact
+          path: ./
+
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        if: ${{ inputs.bridge_run_id }}
+        with:
+          name: bridge-artifact
+          path: ./
+          run-id: ${{ inputs.bridge_run_id }}
+          github-token: ${{ github.token }}
+
+      - uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9 # v1
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+          components: "rustfmt"
+
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+        with:
+          prefix-key: deskmega-linux
+
+      - name: Compilar biblioteca Rust
+        env:
+          VCPKG_ROOT: /opt/artifacts/vcpkg
+        run: cargo build --locked --lib --features hwcodec,flutter,unix-file-copy-paste --release
+
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with:
+          channel: "stable"
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+
+      - name: Patch flutter
+        run: |
+          cd $(dirname $(dirname $(which flutter)))
+          git apply ${{ github.workspace }}/.github/patches/flutter_3.24.4_dropdown_menu_enableFilter.diff
+
+      - name: Build Flutter + .deb
+        run: |
+          export DEB_ARCH=amd64
+          python3 ./build.py --flutter --skip-cargo
+          ls -la *.deb
+
+      - name: Renomear pacote para DeskMEGA
+        run: |
+          mkdir -p dist
+          bash .github/deskmega/repack_deb.sh rustdesk-${{ env.VERSION }}.deb dist/DeskMEGA-${{ env.VERSION }}-amd64.deb
+
+      - name: Teste de instalação
+        run: |
+          sudo apt-get install -y ./dist/DeskMEGA-${{ env.VERSION }}-amd64.deb
+          ls -la /usr/bin/deskmega /usr/share/deskmega | head
+          systemctl status deskmega --no-pager || true
+          sudo apt-get remove -y deskmega
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: DeskMEGA-linux-deb
+          path: dist/*.deb
